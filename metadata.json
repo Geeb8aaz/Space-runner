@@ -1,0 +1,11 @@
+{
+  "name": "Gemini Head Runner",
+  "description": "A lane-runner game controlled by head movements, featuring real-time commentary by Gemini Live.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
