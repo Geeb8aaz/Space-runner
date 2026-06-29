@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import HeadTracker from './components/HeadTracker';
 import RunnerGame from './components/RunnerGame';
-import { GameState, HeadTrackingResult, TopScore } from './types';
+import { GameState, HeadTrackingResult, TopScore, GameMode } from './types';
 import { soundService } from './services/soundService';
 import { GeminiLiveService } from './services/geminiLiveService';
 
@@ -16,11 +16,23 @@ function formatTime(ms: number) {
 
 function App() {
   const [gameState, setGameState] = useState<GameState>(GameState.IDLE);
+  const [gameMode, setGameMode] = useState<GameMode>(GameMode.FREE_RUN);
+  const [timeLimitMs, setTimeLimitMs] = useState(60000); // default 60s
   const [score, setScore] = useState(0);
   const [elapsedTimeMs, setElapsedTimeMs] = useState(0);
   const [topScores, setTopScores] = useState<TopScore[]>([]);
   
   const startTimeRef = useRef(0);
+  const gameModeRef = useRef(gameMode);
+  const timeLimitRef = useRef(timeLimitMs);
+
+  useEffect(() => {
+    gameModeRef.current = gameMode;
+  }, [gameMode]);
+
+  useEffect(() => {
+    timeLimitRef.current = timeLimitMs;
+  }, [timeLimitMs]);
   
   // Timer effect
   useEffect(() => {
@@ -28,7 +40,15 @@ function App() {
     if (gameState === GameState.PLAYING) {
       startTimeRef.current = Date.now() - elapsedTimeMs;
       interval = window.setInterval(() => {
-        setElapsedTimeMs(Date.now() - startTimeRef.current);
+        const currentElapsed = Date.now() - startTimeRef.current;
+        
+        if (gameModeRef.current === GameMode.TIMED_RUN && currentElapsed >= timeLimitRef.current) {
+          setElapsedTimeMs(timeLimitRef.current);
+          setGameState(GameState.GAME_OVER);
+          soundService.playCrash();
+        } else {
+          setElapsedTimeMs(currentElapsed);
+        }
       }, 100);
     }
     return () => clearInterval(interval);
@@ -163,7 +183,7 @@ function App() {
                   </div>
                   {gameState === GameState.PLAYING && (
                       <div className="text-xs text-cyan-400 font-mono">
-                          {formatTime(elapsedTimeMs)}
+                          {gameMode === GameMode.TIMED_RUN ? formatTime(Math.max(0, timeLimitMs - elapsedTimeMs)) : formatTime(elapsedTimeMs)}
                       </div>
                   )}
                 </div>
@@ -188,7 +208,7 @@ function App() {
                 <h2 className="text-3xl font-display font-black text-white mb-2">Initialize Mission</h2>
                 <p className="text-slate-400 text-sm mb-8">Prepare for deep space navigation via neural head-tracking interface.</p>
                 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8 text-left">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6 text-left">
                   <div className="p-4 rounded-xl bg-white/5 border border-white/5">
                     <div className="text-cyan-400 font-bold text-xs mb-1 uppercase tracking-wider">Navigation</div>
                     <div className="text-sm text-slate-300">Tilt head left/right to steer</div>
@@ -197,6 +217,37 @@ function App() {
                     <div className="text-cyan-400 font-bold text-xs mb-1 uppercase tracking-wider">Speed Control</div>
                     <div className="text-sm text-slate-300">Tilt forward to speed up, back to slow. Collecting stars increases base speed.</div>
                   </div>
+                </div>
+
+                <div className="mb-6 flex flex-col gap-2">
+                  <div className="text-cyan-400 font-bold text-xs mb-1 uppercase tracking-wider">Game Mode</div>
+                  <div className="flex gap-2 justify-center">
+                    <button 
+                      onClick={() => setGameMode(GameMode.FREE_RUN)}
+                      className={`px-4 py-2 rounded-lg text-sm font-bold border transition-colors ${gameMode === GameMode.FREE_RUN ? 'bg-cyan-500 text-slate-950 border-cyan-400' : 'bg-white/5 text-slate-300 border-white/10 hover:bg-white/10'}`}
+                    >
+                      Free Run
+                    </button>
+                    <button 
+                      onClick={() => setGameMode(GameMode.TIMED_RUN)}
+                      className={`px-4 py-2 rounded-lg text-sm font-bold border transition-colors ${gameMode === GameMode.TIMED_RUN ? 'bg-cyan-500 text-slate-950 border-cyan-400' : 'bg-white/5 text-slate-300 border-white/10 hover:bg-white/10'}`}
+                    >
+                      Timed Run
+                    </button>
+                  </div>
+                  {gameMode === GameMode.TIMED_RUN && (
+                    <div className="flex gap-2 justify-center mt-2">
+                      {[30000, 60000, 120000, 300000].map(time => (
+                        <button
+                          key={time}
+                          onClick={() => setTimeLimitMs(time)}
+                          className={`px-3 py-1 rounded-md text-xs font-mono border transition-colors ${timeLimitMs === time ? 'bg-cyan-900/50 text-cyan-400 border-cyan-500' : 'bg-white/5 text-slate-400 border-white/10 hover:bg-white/10'}`}
+                        >
+                          {time / 1000}s
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 {topScores.some(s => s.score > 0) && (
@@ -238,7 +289,9 @@ function App() {
                 exit={{ scale: 1.1, opacity: 0 }}
                 className="text-center glass-panel p-10 rounded-3xl border-red-500/30 max-w-md mx-4"
               >
-                <div className="text-5xl font-display font-black text-red-500 mb-4 tracking-tight">HULL BREACH</div>
+                <div className="text-5xl font-display font-black text-red-500 mb-4 tracking-tight">
+                    {gameMode === GameMode.TIMED_RUN && elapsedTimeMs >= timeLimitMs ? 'TIME UP' : 'HULL BREACH'}
+                </div>
                 
                 <div className="space-y-1 mb-6">
                   <p className="text-slate-400 text-sm uppercase tracking-widest">Final Telemetry</p>

@@ -4,6 +4,11 @@ export enum GameState {
   GAME_OVER = 'GAME_OVER'
 }
 
+export enum GameMode {
+  FREE_RUN = 'FREE_RUN',
+  TIMED_RUN = 'TIMED_RUN'
+}
+
 export interface TopScore {
   score: number;
   timeMs: number;
